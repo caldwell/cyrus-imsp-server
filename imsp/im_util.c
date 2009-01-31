@@ -47,6 +47,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <limits.h>
+#include <stdlib.h>
 
 #include "dispatch.h"
 #include "exitcodes.h"
@@ -59,8 +60,6 @@
 #include <varargs.h>
 #endif
 
-/* import from OS: */
-extern char *malloc(), *realloc();
 #define MAX_DIGITS  32  /* max number of digits in long integer */
 
 /* flag that a literal is ready to be sent */

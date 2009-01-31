@@ -49,6 +49,7 @@
 #include <grp.h>
 #include <ctype.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "auth.h"
 #include "xmalloc.h"

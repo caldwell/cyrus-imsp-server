@@ -45,6 +45,7 @@
 #include <config.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include "xmalloc.h"
 #include "util.h"
 #include "syncdb.h"
@@ -55,9 +56,6 @@
 #endif
 #include "acl.h"
 #include "option.h" /* for option_doquota() */
-
-/* import from OS: */
-extern char *malloc();
 
 /* database names */
 static char abooks[] = "abooks";

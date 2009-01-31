@@ -45,6 +45,7 @@
 #include <config.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include "util.h"
 #include "acl.h"
 #include "syncdb.h"
@@ -53,7 +54,6 @@
 #include "authize.h"
 
 /* from OS: */
-extern char *malloc(), *realloc();
 extern char *crypt();
 
 /* name of anonymous user */

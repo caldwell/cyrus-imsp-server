@@ -69,9 +69,6 @@
 #include "alock.h"
 #include "sasl_support.h"
 
-/* import from OS */
-extern char *malloc(), *realloc();
-
 /* structure used for command dispatch list */
 typedef struct command_t {
     char *word;

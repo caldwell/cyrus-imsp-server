@@ -48,10 +48,8 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <string.h>
+#include <stdlib.h>
 #include "util.h"
-
-/* from OS: */
-extern char *malloc(), *realloc();
 
 #define BEAUTYBUFSIZE 4096
 

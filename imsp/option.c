@@ -48,6 +48,8 @@
 #include <config.h>
 #include <stdio.h>
 #include <ctype.h>
+#include <stdlib.h>
+#include <string.h>
 #include "util.h"
 #include "syncdb.h"
 #include "option.h"
@@ -56,9 +58,6 @@
 
 /* from adate.c: */
 extern char *n_arpadate();
-
-/* from OS: */
-extern char *malloc(), *realloc();
 
 /* various strings */
 static char options[] = "options";
