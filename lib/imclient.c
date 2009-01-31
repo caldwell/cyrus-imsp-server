@@ -64,7 +64,7 @@
 #include <sys/select.h>
 #endif
 
-#include <sasl.h>
+#include <sasl/sasl.h>
 
 #ifdef HAVE_SSL
 #include <openssl/lhash.h>
@@ -225,6 +225,9 @@ int imclient_connect(struct imclient **imclient,
     struct sockaddr_in addr;
     static struct imclient zeroimclient;
     int saslresult;
+    int addrsize=sizeof(struct sockaddr_in);
+    struct sockaddr_in *saddr_l=malloc(sizeof(struct sockaddr_in));
+    struct sockaddr_in *saddr_r=malloc(sizeof(struct sockaddr_in));
 
     hp = gethostbyname(host);
     if (!hp) return -1;
@@ -280,12 +283,27 @@ int imclient_connect(struct imclient **imclient,
     }
     if (saslresult!=SASL_OK) return 1;
 
+  if (getpeername((*imclient)->fd,(struct sockaddr *)saddr_r,&addrsize)!=0)
+    return 1;
+
+  /*  saddr_r->sin_port=htons(saddr_r->sin_port);	*/
+
+  addrsize=sizeof(struct sockaddr_in);
+  if (getsockname((*imclient)->fd,(struct sockaddr *)saddr_l,&addrsize)!=0)
+    return 1;
+
+  /*  saddr_l->sin_port=htons(saddr_l->sin_port);	*/
+
   /* client new connection */
   saslresult=sasl_client_new("imap", /* xxx ideally this should be configurable */
 			     (*imclient)->servername,
+			     saddr_l,
+			     saddr_r,
 			     NULL,
 			     0,
 			     &((*imclient)->saslconn));
+  free(saddr_l);
+  free(saddr_r);
   if (saslresult!=SASL_OK) return 1;
 
     return 0;
@@ -1197,9 +1215,6 @@ static int imclient_authenticate_sub(struct imclient *imclient,
 {
   int saslresult;
   sasl_security_properties_t *secprops=NULL;
-  int addrsize=sizeof(struct sockaddr_in);
-  struct sockaddr_in *saddr_l=malloc(sizeof(struct sockaddr_in));
-  struct sockaddr_in *saddr_r=malloc(sizeof(struct sockaddr_in));
   sasl_interact_t *client_interact=NULL;
   char *out;
   unsigned int outlen;
@@ -1219,24 +1234,6 @@ static int imclient_authenticate_sub(struct imclient *imclient,
   if (saslresult!=SASL_OK) return 1;
   free(secprops);
 
-  if (getpeername(imclient->fd,(struct sockaddr *)saddr_r,&addrsize)!=0)
-    return 1;
-
-  /*  saddr_r->sin_port=htons(saddr_r->sin_port);	*/
-  saslresult=sasl_setprop(imclient->saslconn, SASL_IP_REMOTE, saddr_r);
-  if (saslresult!=SASL_OK) return 1;
-
-  addrsize=sizeof(struct sockaddr_in);
-  if (getsockname(imclient->fd,(struct sockaddr *)saddr_l,&addrsize)!=0)
-    return 1;
-
-  /*  saddr_l->sin_port=htons(saddr_l->sin_port);	*/
-  saslresult=sasl_setprop(imclient->saslconn,   SASL_IP_LOCAL, saddr_l);
-  if (saslresult!=SASL_OK) return 1;
-
-  free(saddr_l);
-  free(saddr_r);
-
   /********
    * SASL is setup. Now try the actual authentication
    ********/
@@ -1247,7 +1244,7 @@ static int imclient_authenticate_sub(struct imclient *imclient,
   while (saslresult==SASL_INTERACT)
   {
     saslresult=sasl_client_start(imclient->saslconn, mechlist,
-				 NULL, &client_interact,
+				 &client_interact,
 				 &out, &outlen,
 				 mechusing);
     if (saslresult==SASL_INTERACT) {

@@ -45,7 +45,7 @@
 #ifndef INCLUDED_IMCLIENT_H
 #define INCLUDED_IMCLIENT_H
 
-#include <sasl.h>
+#include <sasl/sasl.h>
 
 struct imclient;
 struct sasl_client; /* to avoid having to include sasl sometimes */
