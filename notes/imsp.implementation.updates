@@ -1,0 +1,216 @@
+IMSP Implementation Updates
+
+Joseph Jackson
+22-Feb-2000
+
+These notes supplement the file "imsp.implementation" with updates and
+corrections that bring it up to date with the latest changes to the
+server. There are several sections found below.
+
+- LDAP-based address books
+- IMAP integration removed
+- SASL authentication added
+- Implementation status
+- Organization of code, description of modules
+
+
+LDAP-BASED ADDRESS BOOKS
+------------------------
+
+The IMSP server now supports a special type of read-only address book
+that is implemented using LDAP lookups rather than the built-in
+"syncdb" database. A section has been added to the
+"Setup-instructions" document to explain how to use it.  The
+"Changes-Todo" file also has some comments on how this feature might
+be improved in the future.
+
+The LDAP lookup code was written against the old Netscape LDAPv2
+library. If you need any changes in order to make it work with your
+preferred LDAP library, I'd appreciate getting those patches back from 
+you.
+
+Why was this added? For several reasons. At Carnegie Mellon, we find
+it useful to have an address book available that lists all users on
+the system. This is especially helpful in the context of the Mulberry
+2.0 mail client, where it is very easy to initiate IMSP address book
+lookups but not as convenient to perform LDAP lookups. 
+
+Before this feature was added, the "All Users" address book was
+generated from the password file every morning, getting munged into
+the IMSP database format. It seemed silly to regenerate a database
+that's already available elsewhere. Plus, the source data violates the
+IMSP spec in that there are several instances where more than one user
+shares the same full name. Since IMSP address books are keyed on full
+name, they are supposed to be unique. This caused all sorts of bugs
+and bad behavior.
+
+The mondo address book also caused performance problems. The IMSP
+server can only keep one address book in memory at a time, but people
+are likely to want to use a personal address book at the same time as
+the "All Users" address book. There are noticable delays when the
+server re-reads the large address book database file, making automatic
+name lookups painfully slow. By eliminating the really huge database
+file, the server feels a lot more responsive to users. Changing
+between multiple personal address books is okay because they tend to
+be relatively small.
+
+In fact, the LDAP lookups are really quick. It seems like the overhead
+of sending a request to the LDAP server is small enough that it's
+indexed lookups still return faster than a local syncdb lookup.
+
+I mentioned earlier a problem where multiple users have the same full
+name (ex: John Anderson). The LDAP code has a somewhat heavy handed
+approach to solving that problem, so it's worth describing.
+
+IMSP address books are keyed on the full name. When you perform a
+search on some address book field, the results are returned as a list
+of full names (database keys). To get the complete details on the
+entries associated with those keys, a fetch command is sent with one
+or more full names. If your search returns "John Anderson" as a match
+and you later fetch it, how will the server know which one you want?
+The IMSP server normally won't let you create duplicate keys, but a
+manually generated database file might violate that rule. If so, it's
+unpredicatable which entry will be returned.
+
+To solve this problem in the case of LDAP address books, some extra
+LDAP searches are performed during the SEARCHADDRESS command. Before
+the server returns the full name of a search result, an extra search
+is done to see if the full name is unique on the LDAP server. If it
+isn't, the full name is augmented with the name and value of some
+other LDAP attribute which is known to be unique. The "uniquifing"
+information is enclosed by square brackets and tacked onto the end of
+the full name. If the extra search finds that only one entry has the
+full name, it is returned directly with nothing extra added on.
+
+When a FETCHADDRESS command is processed for an LDAP address book, the 
+server looks for the special square bracket delimiters. If found, the
+value of the unique attribute is used to find the entry instead of the 
+full name.
+
+We find that users of Mulberry, our preferred e-mail client, don't
+notice the extra details appended to the name. Mulberry never displays
+the full names as returned by the initial SEARCHADDRESS command. It
+returns the full name from the individual FETCHADDRESS commands
+instead, and those are not modified by the server. Applications that
+don't hide this information will result in the users seeing something
+a little odd, but still readable. It might look like this, assuming
+you use the "uid" (user-id) attribute as the uniquifier:
+
+	John Anderson[uid:anderson2]
+
+The "Setup-instructions" file explains how to specify the name of the
+LDAP attribute which is known to be unique at your site. See that file 
+for more details.
+
+
+IMAP INTEGRATION REMOVED
+------------------------
+
+In the original design of the IMSP server, many mailbox-related
+commands were provided. The intention was to make the IMSP server the
+centralized source of mailbox details such as the name of the IMAP
+server housing the folder. Those features were never completely
+implemented and never used by any client that we are aware
+of. (However, the concept continues on in the ACAP protocol's
+Mailboxes dataset.)
+
+To simplify the process of compiling the IMSP server, the IMAP
+integration features have been removed. See the "Implementation
+status" section for an exact list of protocol commands that have been
+removed.
+
+The primary side-effect of this change is that the IMSP server no
+longer obtains Kerberos credentials to be used while connecting to the 
+IMAP server. Sites using Kerberos will no longer need to take
+precautions to ensure that the credentials of the invoker are not
+overwritten. 
+
+Read on for details on how the rest of the authentication
+infrastructure has been affected by the integration of SASL.
+
+
+SASL AUTHENTICATION ADDED
+-------------------------
+
+The LOGIN and AUTHENTICATE commands are now implemented using the
+Cyrus Simple Authentication and Security Layer (SASL) library. See the 
+IETF RFC 2222 for more background on SASL. The "Build-instructions"
+file has more information on obtaining the required SASL library.
+
+The benefit of this work is that there are very few dependencies on
+the particular authentication system (such as Kerberos) used at your
+site. Once you compile SASL and install a plug-in for each mechanism
+you want to support, the IMSP server should just work. There are other
+software packages that also rely on the Cyrus SASL libraries, so the
+tricky details of compiling authentication modules can be done just
+once for all those packages.
+
+
+IMPLEMENTATION STATUS
+---------------------
+
+NOOP			Done
+LOGIN/LOGOUT		Done, with SASL sasl_checkpass function
+AUTHENTICATE		Done, with SASL integration
+CAPABILITY		Done
+GET/SET/UNSET		Done
+CREATEADDRESSBOOK	Done
+DELETEADDRESSBOOK	Done
+RENAMEADDRESSBOOK	Done
+SEARCHADDRESS		Done
+FETCHADDRESS		Done
+STOREADDRESS		Done
+DELETEADDRESS		Done
+LOCK/UNLOCK		Done
+SETACL/DELETEACL	Done
+GETACL/MYRIGHTS		Done
+SUBSCRIBE/UNSUBSCRIBE   Returns "not implemented" as of 1.6a1
+CREATE			Returns "not implemented"
+DELETE			Returns "not implemented"
+RENAME			Returns "not implemented"
+MOVE			Returns "not implemented"
+LIST			Returns "not implemented"
+
+This meets minimal protocol compliance standards outlined in the IMSP
+specification.
+
+
+ORGANIZATION OF THE CODE
+------------------------
+
+The lib/* sources are copied from the Cyrus IMAP mail server. We
+decided to copy the sources over rather than compiling against the
+"libcyrus" associated with the IMAP server.
+
+The rest of the sources are in the "imsp" directory.
+
+imsp_server.c -- parses IMSP protocol received from the client and responds
+                 appropriately.
+main.c        -- main program which listens on a socket waiting for clients
+                 to connect.
+
+authize.c     -- authorization module
+abook.c       -- address book support
+abook_ldap.c  -- read-only address books implemented via LDAP lookups
+option.c      -- support for options database
+alock.c       -- support for advisory locking database
+syncdb.c      -- low level key-value database functions
+im_util.c     -- IMSP/IMAP protocol utility functions
+dispatch.c    -- File writing/reading with provisions for
+                 handling of multiple streams simultaneously.
+                 Also includes SASL-negotiated protection mechanism.
+adate.c       -- RFC 822 date generator
+sasl_support.c - Support routines needed by the SASL library
+
+These files were removed during the SASL integration:
+
+login_krb.c   -- kerberos authentication routines
+login_unix.c  -- unix authentication routines
+
+These files were removed while pulling the IMAP integration features:
+
+bb.c          -- support for global mailboxes
+imap_client.c -- IMSP's IMAP client routines for proxy connections
+proxy_krb.c   -- kerberos proxy login
+proxy_unix.c  -- unix proxy login
+

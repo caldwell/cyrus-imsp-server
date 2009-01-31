@@ -1,0 +1,141 @@
+# Makefile for cyrus library
+# 
+# @configure_input@
+# 
+# Copyright (c) 1998-2000 Carnegie Mellon University.  All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer. 
+#
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in
+#    the documentation and/or other materials provided with the
+#    distribution.
+#
+# 3. The name "Carnegie Mellon University" must not be used to
+#    endorse or promote products derived from this software without
+#    prior written permission. For permission or any other legal
+#    details, please contact  
+#      Office of Technology Transfer
+#      Carnegie Mellon University
+#      5000 Forbes Avenue
+#      Pittsburgh, PA  15213-3890
+#      (412) 268-4387, fax: (412) 268-7395
+#      tech-transfer@andrew.cmu.edu
+#
+# 4. Redistributions of any form whatsoever must retain the following
+#    acknowledgment:
+#    "This product includes software developed by Computing Services
+#     at Carnegie Mellon University (http://www.cmu.edu/computing/)."
+#
+# CARNEGIE MELLON UNIVERSITY DISCLAIMS ALL WARRANTIES WITH REGARD TO
+# THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+# AND FITNESS, IN NO EVENT SHALL CARNEGIE MELLON UNIVERSITY BE LIABLE
+# FOR ANY SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
+# AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
+# OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+# Authorization namespace.
+AUTH=auth_@WITH_AUTH@.o
+
+# ACL interpretation.  Only one choice for now:
+ACL=acl_afs.o
+
+srcdir = @srcdir@
+VPATH = @srcdir@
+
+CC = @CC@
+
+INSTALL = @INSTALL@
+RANLIB = @RANLIB@
+
+DEFS = @DEFS@
+CPPFLAGS = -I.. @CPPFLAGS@ @SASLFLAGS@
+LIBS = @LIBS@
+
+CFLAGS = @CFLAGS@
+LDFLAGS = @LDFLAGS@
+
+SHELL = /bin/sh
+MAKEDEPEND = @MAKEDEPEND@
+
+prefix = @prefix@
+exec_prefix = @exec_prefix@
+cyrus_prefix = @cyrus_prefix@
+
+HDRS = $(srcdir)/acl.h $(srcdir)/assert.h $(srcdir)/auth.h \
+	$(srcdir)/bsearch.h $(srcdir)/charset.h $(srcdir)/glob.h \
+	$(srcdir)/gmtoff.h $(srcdir)/imclient.h $(srcdir)/imparse.h \
+	$(srcdir)/lock.h $(srcdir)/map.h $(srcdir)/mkgmtime.h \
+	$(srcdir)/nonblock.h $(srcdir)/parseaddr.h $(srcdir)/prot.h \
+	$(srcdir)/retry.h $(srcdir)/sysexits.h \
+	$(srcdir)/lsort.h $(srcdir)/stristr.h $(srcdir)/hash.h \
+	$(srcdir)/util.h $(srcdir)/xmalloc.h $(srcdir)/imapurl.h \
+	$(srcdir)/cyrusdb.h
+
+# Trim out some of the stuff we don't need for IMSP
+# OBJS = acl.o assert.o bsearch.o charset.o glob.o retry.o util.o \
+#	mkgmtime.o prot.o parseaddr.o imclient.o imparse.o xmalloc.o \
+#	lsort.o stristr.o hash.o \
+#	chartable.o imapurl.o nonblock_@WITH_NONBLOCK@.o lock_@WITH_LOCK@.o \
+#	gmtoff_@WITH_GMTOFF@.o map_@WITH_MAP@.o $(ACL) $(AUTH) \
+#	@LIBOBJS@ cyrusdb_db3.o cyrusdb_flat.o
+
+OBJS = acl.o assert.o bsearch.o charset.o glob.o retry.o util.o \
+	mkgmtime.o prot.o parseaddr.o imclient.o imparse.o xmalloc.o \
+	chartable.o nonblock_@WITH_NONBLOCK@.o lock_@WITH_LOCK@.o \
+	gmtoff_@WITH_GMTOFF@.o hash.o $(ACL) $(AUTH) iptostring.o \
+	@LIBOBJS@
+
+all: libcyrus.a
+
+install:
+# Don't install any parts of libcyrus from the IMSP collection!
+#	$(srcdir)/../install-sh -d $(DESTDIR)$(exec_prefix)/lib
+#	$(INSTALL) -m 644 libcyrus.a $(DESTDIR)$(exec_prefix)/lib
+#	$(RANLIB) $(DESTDIR)$(exec_prefix)/lib/libcyrus.a
+#	for file in $(HDRS); \
+#	do \
+#		$(INSTALL) -m 644 $$file $(DESTDIR)$(prefix)/include/cyrus || exit 1; \
+#	done
+
+.c.o:
+	$(CC) -c $(CPPFLAGS) $(DEFS) -I$(srcdir) -I. $(CFLAGS) \
+	$<
+
+libcyrus.a: $(OBJS)
+	rm -f libcyrus.a
+	ar cr libcyrus.a $(OBJS)
+	$(RANLIB) libcyrus.a
+
+chartable.c: mkchartable 
+	@echo "### Building chartables..."
+	rm -f chartable.c
+	./mkchartable \
+	 -m $(srcdir)/charset/unifix.txt	\
+	 -m $(srcdir)/charset/unidata2.txt \
+	 $(srcdir)/charset/*.t \
+	 > chartable.c \
+	 || (rm -f chartable.c && exit 1)
+	@echo "### Done building chartables."
+#	./mkchartable -m $(srcdir)/charset/unicode.map $(srcdir)/charset/*.t >x-chartables.h
+#	mv x-chartables.h chartables.h
+
+mkchartable: mkchartable.o xmalloc.o assert.o
+	$(CC) $(LDFLAGS) -o mkchartable mkchartable.o xmalloc.o assert.o
+
+clean:
+	rm -f *.o *.a chartable.c Makefile.bak mkchartable makedepend.log
+
+distclean: clean
+	rm -f Makefile
+
+depend:
+	${MAKEDEPEND} $(CPPFLAGS) $(DEFS) -I$(srcdir) $(CFLAGS) *.c $(srcdir)/*.c 1>makedepend.log 2>&1
+
+# DO NOT DELETE THIS LINE -- make depend depends on it.

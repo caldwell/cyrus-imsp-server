@@ -1,0 +1,700 @@
+*DRAFT*DRAFT*DRAFT*DRAFT*DRAFT*DRAFT*DRAFT*DRAFT*DRAFT*DRAFT*DRAFT*DRAFT*
+
+
+
+
+** SEE ALSO THE UPDATES TO THIS DOCUMENT KEPT IN "imsp.implementation.updates"
+
+
+		   CMU's IMSP server implementation
+		   --------------------------------
+
+			   by Chris Newman
+			    draft 10/12/94
+
+ASSUMPTIONS
+-----------
+
+This document assumes you are familiar with both the IMSP and IMAP4
+protocols.
+
+TERMS
+-----
+
+ACL
+	Access control list, as defined in IMSP specification.
+
+CYRUS-IMSP
+	CMU's implementation of IMSP
+
+IMAP
+	Interactive Mail Access Protocol (see RFC-1176, IMAP4 internet-draft)
+	A protocol for users to access mail and bboards.
+
+IMSP
+	Interactive Mail Support Protocol (see IMSP document)
+	A protocol to manage multiple IMAP servers and provide support
+	functions that are related to mail access.
+
+UID
+	An IMAP UID.
+
+USP
+	Un-Specified Protocol
+	A currently unspecified protocol or set of protocol extensions
+	for communication between IMAP and/or IMSP servers.
+
+SCOPE
+-----
+
+This document is a working document describing the Cyrus
+implementation of IMSP.  Some of the items described in this document
+are not implemented, but should be implemented in the future.  This
+document may change at any time in any way.
+
+FILES
+-----
+
+CYRUS-IMSP will store its configuration files in a configuration directory
+(usually /var/imsp).  Each file will have a separate lock file by the
+same name with a "." post-pended.  Within this configuration directory
+are the following files:
+
+options
+	Global options file.  See the "OPTIONS" section below.
+
+abooks
+	List of address books with ACLs.  See "ADDRESS BOOKS" below.
+
+mailboxes
+	List of available mailboxes, the servers they're on and the
+	uid of the last message in the folder.  See "MAILBOXES" below.
+
+changed
+	List of mailboxes that have been renamed or replaceed.
+
+user
+	Directory for user specific information.
+
+The user subdirectory will contain another subdirectory for each user
+on the system.  The user specific subdirectories will contain the
+following:
+
+options
+	User options.  See "OPTIONS" section below.
+
+subs
+	List of mailboxes the user has accessed, a flag indicating
+	subscription status, and an uid.  See "SUBSCRIPTIONS" below.
+
+abooks
+	List of personal address books.  See "ADDRESS BOOKS" below.
+
+abook.<name>
+	User address book(s).  See "ADDRESS BOOKS" below.
+
+abookacl.<name>
+	User address book access control list(s).  See "ADDRESS BOOKS"
+        below.
+
+alock
+	Advisory locks for address books and options.
+
+Fields stored in IMSP database files will be encoded with "\n" for
+newlines, "\s" for spaces, and "\\" for backslashes as necessary.
+When the CYRUS-IMSP server becomes a replicated service, cross server
+locking and synchronization of these files will need to be
+implemented.  All file access and file locking will be heavily
+modularized in expectation of this replication.
+
+OPTIONS
+-------
+
+Server configuration, user configuration and some general information
+is made available through the options interface.  Options may be read
+with the IMSP "GET" command and changed with the IMSP "SET" or "UNSET"
+commands.  Four basic types of options are supported.  "Magic" options
+are built into the server and may return different values at different
+times (e.g. the "common.date" option).  "Non-visible" options may
+only be used by the config administrator, and are for configuration
+options that are of no interest to the user.  "Read-only" options may
+not be changed by users.  "Read-write" options may have a default
+(global) value, which may be overridden by the user's local options.
+Non-visible options appear read-only to a full administrator.  Magic
+options usually appear as read-only.
+
+The options file contains a list of options in the following format:
+
+	OPTION-NAME OPTION-TYPE OPTION-VALUE LF
+
+The OPTION-NAME is a string containing no spaces or CRLF characters
+and specifies the option.  The OPTION-TYPE is a single character
+either 'N' (Non-visible), 'R' (Read-only) or 'W' (Read-Write).
+
+Option names are case-insensitive, but option values may be case
+sensitive.
+
+By convention: Boolean options are on if their value is '+' and off if
+their value is '-'.  Integer options are numeric with an optional '-'
+prefix.  List options begin with '(', end with ')', and the different
+items are separated by spaces.  If necessary, '"' could be used to
+quote list items containing parentheses and spaces.
+
+Normal users may only set options in their user options file that
+don't shadow a global read-only option.  Full administrators may
+change global options using the IMSP "SET" command and prefixing the
+option name with a "*".  A full administrator can change read-only or
+non-visible options by prefixing the option name (after the "*" prefix
+if it's global) with "%" or "%%" respectively.
+
+ADMINISTRATION
+--------------
+
+There will be three levels of administration provided by CYRUS-IMSP.
+The usernames in the "imsp.admin.subs" list option are allowed to view
+but not change other user's subscriptions and mailboxes (by issuing
+the LOGIN command with a null password).  This is provided to allow a
+subscription statistics service such as CMU's "arbitron" or a delivery
+system to find the location of a user's INBOX.  The
+"imsp.admin.bboards" level would be useful for a postmaster who
+administrates the entire mailbox tree.  The "imsp.admin.all" level
+(which includes all the others) allows full access to the CYRUS-IMSP
+server and would be useful for the system administrator.
+
+The following IMSP commands will be generally restricted in CYRUS-IMSP:
+MOVE, CREATE with server_partition_list, and DELETE with hostname.
+
+If the mailbox "user.<username>" is removed, then that user will
+be removed from the IMSP server database.
+
+AUTHENTICATION/AUTHORIZATION
+----------------------------
+A separate module for authentication and authorization will be made to
+allow site-specific changes.  This will be used to control logins,
+proxy IMAP connections, and access control list lookups.
+
+The reference authentication module will do standard unix or (if
+KERBEROS is defined at compile time) kerberos authentication, and
+authorize the administrative levels listed above by looking for the
+usernames in the list options "imsp.admin.subs", "imsp.admin.bboards",
+"imsp.admin.all".  Proxy-IMAP will use the plaintext password, or if
+KERBEROS is used, it will authenticate as user
+imap.<IMSP-HOSTNAME-PREFIX> and get a ticket for
+imap.<IMAP-HOSTNAME-PREFIX> using that ticket to authenticate users.
+This requires a simple modification to the IMAP server to consider a
+kerberos ticket belonging to imap.* (or imap.<imsphost>) as a valid
+password for any user.  Access controls lists will contain only
+userids, or the word "anonymous" which applies to all users not listed
+in the ACL as well as unauthenticated users.
+
+A future authentication module may be made that allows AFS groups in
+ACLs and uses "system:anyuser" in place of "anonymous".  The
+"imsp.admin.*" options may be replaced with AFS groups.
+
+LOGIN ACCESS
+------------
+
+Access to the server is controlled by the login command.  The initial
+version will allow kerberos-style logins as well as plaintext logins.
+If the global option "imsp.create.new.users" is not set, then a user
+must also have a subdirectory in the "user" directory and an "options"
+file in order to log in.  If "imsp.create.new.users" is set and the
+user has no INBOX, it will be created according the the "CREATE"
+policy below.  A full administrator may gain access to a user's
+MAILBOX namespace by issuing a second LOGIN command with that user's
+name and a NULL password.
+
+SERVER STRUCTURE
+----------------
+
+The CYRUS-IMSP server will run as a process which watches the
+appropriate port.  When a connection from a client is made, the server
+process will fork to give each client its own process.  The parent
+process will continue to watch for connections and will also
+periodically update the MAILBOX LISTS (see next section).  A limit on
+the number of connections to service could be added if deemed necessary.
+
+FAULT TOLERANCE
+---------------
+
+Any bad protocol or improper syntax from the user will be rejected
+through the protocol.  If a connection from a user is dropped, the
+server will make sure all files are up to date, and let the connection
+go.  In the case of server disk errors, the server will abort (and
+remove itself from the pool if replicated servers are being used) and
+wait for the system administrator to clean up.  User subscriptions,
+options and address books should be backed up regularly for recovery
+purposes.  If a proxy connection to an IMAP server fails, IMSP will
+respond to the user request which prompted the proxy with a failure
+message.
+
+MAILBOX LISTS
+-------------
+
+The first time the CYRUS-IMSP server is started, no top level "mailboxes"
+file will exist.  At this point the server will check the
+"imsp.imap.servers" option and contact each IMAP server in the list to
+find the available mailboxes by doing a "LIST "" *".
+
+The mailboxes file will have the following format:
+
+	MAILBOX-NAME UID FLAGS IMAP-SERVER-LIST ACL-LIST LF
+
+The MAILBOX-NAME is the name of that mailbox.  IMAP-SERVER-LIST is a
+list of hostnames where that mailbox is stored.  UID is the uid for
+that mailbox.  ACL-LIST is a series of tab-separated identifier-rights
+pairs with a trailing tab.  The FLAGS field begins with the separator
+character or CR if no separator character is supported.  Currently
+there are no other flags, but they may be added in the future.
+
+MAILBOX NAMESPACE
+-----------------
+
+If the "imsp.external.subs" option is set, than names of the form
+{hostname}folder are reserved for external sites.
+
+SUPPORT FOR C-CLIENT
+--------------------
+
+Due to c-client's naming conventions, no support is planned for use of
+a cyrus-imsp server with a c-client imap server at present.  A "always
+proxy" option might be added to support c-client minimally.
+
+SUBSCRIPTIONS
+-------------
+
+Information about subscriptions to mailboxes are stored in the
+"subs" file in the following format:
+
+	MAILBOX-NAME SUBSCRIPTION-STATUS UID LF
+
+MAILBOX-NAME is the name of the mailbox.  SUBSCRIPTION-STATUS is a flag:
+'0' indicates user is not subscripted and '1' indicates user is
+subscribed.  UID indicates how much the user has seen.
+Subscriptions may be adjusted with the IMSP "SUBSCRIBE" and
+"UNSUBSCRIBE" commands.  A user is not permitted to unsubscribe to a
+mailbox listed in the "imsp.required.subs" option.
+
+If a user has no subs file, a new one will be created with a
+subscription to each mailbox listed in the "imsp.default.subs"
+option.
+
+If the option "imsp.external.subs" is set, then a user may subscribe
+to any mailbox name with the '{' prefix.  The subscription will be
+returned by the LSUB with an empty list of server locations.  This is
+only appropriate for sites whose clients all recognize the
+{hostname}mailbox notation.
+
+The mailboxes and subs files will be kept in alphabetic order.  By
+default, the LIST commands will return INBOX first, followed by the
+mailboxes in alphabetic order.
+
+MARKED FLAG
+-----------
+
+The \Marked flag will be implemented as follows: The "LAST" and "SEEN"
+IMSP extension commands will be used to change seen/unseen information
+as follows:
+
+	tag LAST mailbox UID
+
+This command will be sent from an IMAP server to CYRUS-IMSP periodically to
+indicate the mailboxes with new messages.
+
+	tag SEEN mailbox UID userid
+
+This command will be sent from an IMAP server to CYRUS-IMSP only when a
+user finishes reading all messages on the specified mailbox.
+
+A "LAST" will specify the uid to be placed in the mailboxes file for a
+given mailbox, and a "SEEN" will specify the uid to be placed in the
+subs file for a given user and mailbox. It is expected that the IMAP
+servers will be the only users allowed to use the "SEEN" and "LAST"
+commands.
+
+The UID "*" is used in the mailboxes files to represent a UID for
+which no LAST information has been provided.  The UID "0" is reserved
+to mean there are no messages in the given folder, or the user has
+read no messages in the folder.
+
+IMSP SERVER REPLICATION
+-----------------------
+
+A single IMSP server will probably be insufficient for a medium to
+large site.  Therefore consideration must be taken on how to replicate
+the CYRUS-IMSP database between cooperating CYRUS-IMSP servers.  An
+inter-IMSP server locking and data transfer protocol will need to be
+found.  One possibility is to use the ubik protocol from Transarc.
+This would, however, prevent us from being able to distribute a
+replicated IMSP implementation outside of CMU.  Load balancing between
+IMSP servers should be provided by DNS.  For the first implementation
+(which won't include IMSP server replication), care will be taken to
+keep all access to potentially shared data highly modularized.
+
+MAILBOX REPLICATION
+-------------------
+
+IMSP supports replication of mailboxes on multiple servers. To do
+this, CYRUS-IMSP will have to designate a master site for a mailbox and
+manage replication through the USP.  The master site will be the first
+mailbox listed in the server list.  In addition, the USP may support a
+server-load indicator so that CYRUS-IMSP can sort the output of the list
+of servers for LIST command by a load parameter.  Alternatively, the
+CYRUS-IMSP server could simply randomize the list. The LIST command will
+return unsorted server lists to any administrator (so that the
+administrator can determine the master site).
+
+MOVE
+----
+
+The IMSP "MOVE" command is used to move folders between IMAP servers.
+This requires a command in USP (or IMAP) to direct an IMAP server to
+send a folder to another IMAP server.
+
+CREATE
+------
+
+The IMSP "CREATE" command is used to create new mailboxes.  It adjusts
+the mailboxes files as appropriate.  If no hostname is specified on
+the "CREATE" command, the hostname will be the hostname of the parent
+mailbox.  "CREATE" will be implemented by proxy to an IMAP server.
+
+An "imsp.create.policy" option may be added later as follows: Policy
+types include the following: "random" selects a random server from the
+"imsp.new.mailbox.servers" list.  "parent" selects the server that the
+"parent" mailbox is located on, if no parent mailbox is found, it
+falls back to another policy.  "free-space" selects the server with
+the most available free space.  This can only be implemented if a free
+space request is available through USP.
+
+CHANGED SUBSCRIPTIONS
+---------------------
+
+The "changed" file allows a lazy evaluation method of updating user
+subs files.  When a user is subscribed to a non-existent mailbox, the
+"changed" file will be checked for an entry for that mailbox.  The
+changed file contains lines of the form:
+	OLD-MAILBOX NEW-MAILBOX LF
+OLD-MAILBOX is the name of a non-existent mailbox and NEW-MAILBOX is
+the name of the new mailbox which has replaced OLD-MAILBOX.  If a
+mailbox is renamed more than once, the previous entries in the
+"changed" file will be updated to prevent chaining.
+
+RENAME
+------
+
+If a user mailbox is renamed with the IMSP "RENAME" command, the
+mailboxes file should be adjusted as appropriate and a line will be
+added to the "changed" file.  This allows modification of individual
+user's subs file to be done in a lazy-evaluation style and also allows
+CYRUS-IMSP to alert the user (through an unsolicited NO) that the
+mailbox has been renamed.  The "RENAME" command will be implemented by
+proxy to the appropriate IMAP server.
+
+DELETE
+------
+
+The IMSP "DELETE" command will adjust the mailboxes file as
+appropriate.  When a user has a subscription entry that refers to a
+non-existent mailbox (that doesn't have an entry in the changed file)
+they will be informed that the mailbox was deleted and the
+subscription entry will be removed.  The "DELETE" command will be
+implemented by proxy to the appropriate IMAP server.
+
+ADDRESS BOOKS
+-------------
+
+The "ADDRESSBOOK" command will be implemented by first scanning the
+user's "abooks" database then the global "abooks" database.  The ACL
+of each address book scanned will be checked to see if the user has
+read access, and if so, it will be returned in an unsolicited "*
+ADDRESSBOOK" command.
+
+The global "abooks" database will contain a list of all address books
+that have ACL entries for identifiers other than the owner.  The
+default ACL for an address book is full rights for the owner and no
+rights for others.
+
+The "CREATEADDRESSBOOK", "DELETEADDRESSBOOK", and "RENAMEADDRESSBOOK"
+commands are used to manage address books.  The default address book,
+however, is assumed to implicity exist so the implementation will
+implicitly create it.  The "create" access right on the default
+address book determines who is permitted to create new address books.
+
+The "abook.[name]" files are used to store a user's address books.
+The addressbook "abook.<username>" is the primary address book, and
+other address books are of the form "abook.<username>.<ext>".  An
+address book entry will be in the following form:
+	<name>"<field> <value>
+The double-quote `"' is used as a separator and will be disallowed as
+part of the <name>.  The "FETCHADDRESS" command will return all
+<field> <value> pairs for a given <name>.  The "DELETEADDRESS"
+command will remove all entires for a given <name>.  The
+"STOREADDRESS" command will add or change the entry or entries as
+appropriate.  The "SEARCHADDRESS" command will do a separate search
+for each field/value-pattern pair and intersect the results.  When an
+entry is created, it is given an entry with an empty <field> which is
+removed only upon deletion.
+
+Mapping the address book database file into a key-value form like the
+other database files makes it easier to use the same mechanism for all
+database files.  The disadvantage is that the key-value database
+system has to be expanded to do searches on both the key and the value
+at the same time (rather than just the key), and that "FETCHADDRESS",
+"SEARCHADDRESS" and "DELETEADDRESS" must walk through every
+<name>/<field> pair.
+
+ACLS
+----
+
+Address book ACLs are stored in a file "abookacl.<abook-name>" in the
+owner's directory.  They are sorted case-sensitive, and are stored in
+the following format:
+	<identifier> <text-rights-list>
+The <text-rights-list> is restricted to characters listed in the IMSP
+specification.  No ACL file is stored if the ACL is the default
+address book ACL (see "ADDRESS BOOKS" above).
+
+The IMSP "SETACL", "DELETEACL", "GETACL" and "MYACL" commands for
+mailboxes and mailboxes only require location of the mailbox/mailbox on
+the part of the CYRUS-IMSP server.  The rest is dependent upon
+implementing ACL support in either IMAP or USP.  CYRUS-IMSP will assume
+that the lookup access right is always set for all mailboxes.
+
+ADVISORY LOCKS
+--------------
+
+The advisory lock file (alock) is a per-user database of objects that
+are locked.  The format of the file is as follows:
+	<key> <userid>@<hostname>
+The <key> field may be an option name, or have the syntax
+<abook>"<name>, where <abook> is the name of an address book, and
+<name> is the name of the locked entry.  The <userid> is the user that
+locked the entry, and the <hostname> is the host that sent the lock
+request to the IMSP server.  When a user tries to lock an already
+locked entry, an error message will be sent including the
+<userid>@<hostname>.  In order to prevent advisory locks from getting
+"stuck", the IMSP server process will keep a list of all advisory
+locks held by a client.  When that client disconnects, any advisory
+locks that are still locked will be unlocked.
+
+QUOTA
+-----
+
+The "imsp.user.quota" option specifies the maximum amount of kilobytes
+that the user may store in their option and address book files.  The
+ACL files and subscriptions files are not included since they are not
+free-form databases.  The STOREADDRESS and SET commands will fail if
+the user would be over-quota upon completion.  If the option is set to
+0, then quota is unlimited.
+
+The user's usage will be stored in a read-only per-user option
+"imsp.user.quota.usage".  The value of this option will be in bytes,
+and will be the sum of the following:
+	length of the option names of per-user read-write options
+	length of the option values of per-user read-write options
+	length of the field name for every entry in every address book
+	length of the values for every entry in every address book
+The STOREADDRESS and SET commands will compute a delta for this value,
+and check if that delta will put the value: imsp.user.quota.usage / 1024
+over the imsp.user.quota.  The DELETEADDRESS and UNSET commands will
+also modify the usage appropriately.
+
+LOGGING
+-------
+
+CYRUS-IMSP will support multiple levels of logging using the standard
+UNIX syslog mechanism.  Logging will be modular so that an alternate
+mechanism could be used if syslog is deemed too primitive.  The
+"imsp.log.level" option will specify the logging level (each level
+includes the previous levels) as follows:
+
+0 - only fatal errors will be sent to syslog as LOG_ERROR.
+
+1 - warnings will be sent to syslog as LOG_WARNING.
+
+2 - mailbox administrative actions (including new mailbox creations)
+will be sent to syslog as a LOG_NOTICE.  The message will include the
+user, hostname, type and time of the action.
+
+3 - every time a user logs in or out, a syslog LOG_NOTICE message will
+be sent.
+
+9 - debugging messages will be sent to syslog as LOG_DEBUG.
+
+MONITORING
+----------
+
+The initial implementation will keep in mind that we will want to
+monitor serious IMSP errors and possibly the number of active
+connections to a given server.  These might be made available through
+SNMPcon or a similar mechanism.
+
+Unspecified Protocol (USP) FEATURES
+-----------------------------------
+
+A directed move/copy function is necessary to implement the IMSP
+"MOVE" command and replication.  The CYRUS-IMSP server must be able to
+request available free space on a server in order to implement
+load-balanced creation policies.  ACL support should be added to USP
+(or IMAP) in order to allow implementation of the IMSP ACL commands.
+A way of finding a system load parameter on IMAP servers should be
+added to support load-balanced mailbox replication.  Support would
+also be needed in order to implement the partition based CREATE
+feature.
+
+INTERFACE TO DELIVERY SYSTEM
+----------------------------
+
+The delivery system is expected to use CYRUS-IMSP to locate the
+appropriate IMAP server to deliver a message.  It must have
+"imsp.admin.subs" level access to locate the INBOX for any user.
+
+PREDEFINED OPTIONS
+------------------
+
+The following option names are reserved in this implementation.
+
+common.date			[READ-ONLY] (magic)
+	When a user asks for the value of the date option, an RFC-822
+	date string should be returned with the current time.  This is
+	provided to assist small clients with unreliable clocks.
+
+common.delivery.hosts		[READ-ONLY]
+	This contains the list of recommended SMTP hosts for mail delivery.
+
+common.domain			[READ-ONLY]
+	When a user asks for the domain option, the local mail domain
+	is returned.
+
+common.from			[READ-ONLY] (magic)
+	When a user asks for the value of the from option, an RFC-822
+	address for that user is returned.
+
+common.sent.mailbox		[READ-WRITE]
+	The name of a mailbox to APPEND blind carbon copies.
+
+imsp.admin.all			[NON-VISIBLE]
+	This is a list of users that may use any implemented IMSP features.
+
+imsp.admin.bboards		[NON-VISIBLE]
+	This is a list of users that may create, rename, delete and
+	replace any mailbox.
+
+imsp.admin.subs			[NON-VISIBLE]
+	This is a list of users allowed to view (but not change) other
+	user's subscriptions and mailboxes.
+
+imsp.create.new.users		[NON-VISIBLE]
+	If this global option is on, the directory for a new user
+	will be created automatically.  Otherwise the system
+	administrator must create a directory for each authorized user.
+
+imsp.create.policy		[NON-VISIBLE]
+	This is specifies the creation policy for new mailboxes.  The
+	option is specified as a site-defined string.
+
+imsp.default.subs		[NON-VISIBLE]
+	A list of the default subscriptions given to a new user.
+
+imsp.external.subs		[NON-VISIBLE]
+	If this is set, subscriptions to external mailboxes and
+	mailboxes are allowed by using the {hostname}folder notation.
+
+imsp.imap.servers		[READ-ONLY]
+	This global option contains a list of all IMAP servers managed
+	by IMSP.  An implementation specifier may be appended to the
+        end of a server name with a `/' separator.
+
+imsp.log.level			[NON-VISIBLE]
+	This integer specifies the amount of logging to be done.
+
+imsp.login.realms		[NON-VISIBLE]
+	This specifies a list of realms which are permitted to do
+	cross-realm kerberos authentication.
+
+imsp.login.srvtab		[NON-VISIBLE]
+	This specifies the filename of the kerberos srvtab file.
+
+imsp.new.mailbox.servers	[NON-VISIBLE]
+	This specifies a list of IMAP servers to search for or create
+	the INBOX for a new user, or new non-personal mailboxes.
+
+imsp.proxy.authlevel		[NON-VISIBLE]
+	This is an integer bitmask of the authentication levels
+	supported for proxy login to IMAP servers.  Add 1 if cleartext
+	permitted, add 2 if integrity permitted, add 4 if privacy
+	permitted.  Defaults to 7.  The highest permitted mechanism
+	available will be used.
+
+imsp.proxy.authtype		[NON-VISIBLE]
+	This is the authentication type used for proxy login
+	to IMAP servers.  If this is not set, the best authentication
+	available will be used.  Only KERBEROS_V4 and PLAINTEXT
+	supported at present.
+
+imsp.required.subs		[NON-VISIBLE]
+	Users will not be allowed to unsubscribe to mailboxes in this
+	list.
+
+imsp.share.mailboxes		[NON-VISIBLE]
+	If this global option is on, then mailbox names beginning with
+	the prefix "user.<username>." are reserved as mappings of
+	individual user's MAILBOXES into the MAILBOXES namespace.  In
+	addition, it permits users to allow other users to read their
+	mailboxes if ACLs permit.
+
+imsp.user.inbox			[READ-ONLY]
+	This is the name of a mailbox which will appear as "INBOX" on any
+        mailbox list.  The phrase "$USER" will be replaced with the login
+        name of the current user.
+
+imsp.user.quota			[READ-ONLY]
+	This is an integer specifying the maximum number of kilobytes
+	in the user's options & address books (doesn't include
+	subscriptions or address book ACLs).
+
+imsp.user.quota.usage		[READ-ONLY]
+	This is an integer specifying the number of bytes used by
+	options and address book entries (see "QUOTA" above for full
+	details).  Its value is translated to kilobytes for user
+	requests.
+
+
+PROJECT PLAN
+------------
+Phase 1 - Basic Implementation
+The goal of phase 1 will be to produce an IMSP server with all basic
+functionality that works with a stock IMAP server.  Only features
+which can be implemented without the USP will be done.  This includes
+the following:
+Options: including GET, SET, and UNSET.
+Address books: including SEARCHADDRESS, FETCHADDRESS, STOREADDRESS,
+             DELETEADDRESS, RENAMEADDRESS
+Address book ACLs: SETACL, GETACL, DELETEACL, MYACL
+Advisory locking: LOCK and UNLOCK.
+LIST/LSUB (although the "SEEN" and "LAST" commands won't be implemented)
+Administrative levels with LOGIN
+SUBSCRIBE, UNSUBSCRIBE
+CREATE/RENAME/DELETE without replication or free-space create policy.
+
+Phase 2 - Unseen Information
+This will involve implementing the "SEEN" and "LAST" commands as well
+as modifying an IMAP server to use them.
+
+Phase 3 - Advanced features
+This will involve implementing the USP, "MOVE",
+create/rename/delete/replace for mailboxes, ACLs, and free-space create
+policy.  It will probably be necessary to write our own IMAP
+implementation in order to make the IMAP and IMSP servers work
+together smoothly with these features.
+
+Phase 4 - Replicated IMSP
+This might be done before phase 3, as it has no dependencies on IMAP
+modifications.  This involves adding inter-IMSP server
+synchronization.
+
+Phase 5 - Replicated mailboxes
+This could be done before phase 4 but depends on phase 3.  Add
+replication support for mailboxes as well as load-balanced server lists
+returned by the LIST command.

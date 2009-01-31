@@ -1,0 +1,177 @@
+This file describes how to build the cyrus IMSP server.  See the rest
+of the files in the "notes" directory for more information about
+setting up the server.
+
+Be sure to check the "Changes-Todo" file for important changes from
+previous versions.
+
+
+CYRUS SASL IS REQUIRED
+----------------------
+
+All of the authentication code that was included with the Cyrus IMSP
+sources has been removed in favor of calls to the Cyrus SASL
+library. SASL is the Simple Authentication and Security Layer, an
+extensible system for handling authentication and encryption in
+connection-based protocols.
+
+You no longer use the configure "--with-login" option to choose an
+authentication and password checking scheme. Instead, the imspd is
+linked against the SASL library. Provide the appropriate security
+mechanism plug-ins (dynamic libraries) to SASL and they will be
+available to the IMSP server.
+
+The authorization code is still present, however, because the SASL API 
+doesn't provide an abstraction layer for group membership, access
+control lists, etc. The "--with-auth" option is still used to select
+the appropriate authorization module at compile time.
+
+To obtain a copy of SASL, refer to these URLs:
+  <http://asg.web.cmu.edu/sasl/>
+  <ftp://ftp.andrew.cmu.edu/pub/cyrus-mail/>
+
+This version of Cyrus IMSP requires atleast SASLv2.
+
+PARTS OF CYRUS IMAPD INCLUDED
+-----------------------------
+
+The "lib" subdirectory is a direct copy of the equivalent portion of
+the Cyrus IMAP mail server sources (at some point in the past).
+Only the Makefile.in has been modified to omit unnecessary portions.
+If you're having trouble with this part of the code, you can instead
+try the latest Cyrus IMAPD sources to see if it helps. See the URLs above.
+
+
+SHORT INSTRUCTIONS
+------------------
+
+	./configure
+	make all
+
+To compile with Kerberos authorization and Kerberos found in
+/usr/local, use:
+
+	./configure --with-auth=krb --with-krb=/usr/local
+
+See the next section or look in configure.in for more configure options.
+
+
+COMPILATION OPTIONS
+-------------------
+
+Define these preprocessor macros by adding something like
+"-DANONYMOUS_LOGIN" to the compiler command line. Both of these should
+probably be converted to run-time options set in the global options
+file.
+
+ ANONYMOUS_LOGIN 
+  Permits the user "anonymous" to login with any password.
+
+ DISABLE_AUTO_CREATE_AB
+  Define this if you don't want users to be able to create their
+  own addressbooks. Note that the imsp.create.new.users option
+  controls the automatic creation of the options file, not the
+  addressbook.
+
+As of version 1.6a1 of the server, the mailbox (bboard) features and
+all other IMAP proxy features have been removed.
+
+CONFIGURE OPTIONS
+-----------------
+
+  --with-sasldir=PATH     PATH where the SASL library is installed
+  --with-ldap=LIBRARY     use LDAP address book features
+                          LIBRARY is the name of your LDAP library
+  --with-lock=METHOD      force use of METHOD for locking
+                          METHOD is flock or fcntl
+  --with-auth=METHOD      use authorization module METHOD
+                          METHOD is unix, krb, or krb_pts
+  --with-krb=PATH         use Kerberos from PATH
+  --with-statedir=DIR     use DIR as state directory for ptclient,
+                          only needed when using krb_pts for authorization
+
+
+LONG INSTRUCTIONS
+-----------------
+
+Configure the package for your system.  In the directory above the one
+that this file is in, type `./configure'.  If you're using `csh' on an
+old version of System V, you might need to type `sh configure' instead
+to prevent `csh' from trying to execute `configure' itself. If you are
+using Ultrix, you might need to type `sh5 configure' to avoid bugs in
+/bin/sh. Note that 'sh -x configure' may give different results than
+'sh configure', making it difficult to debug configure scripts.
+
+The `configure' shell script attempts to guess correct values for
+various system-dependent variables used during compilation, and
+creates the Makefile(s) (one in each subdirectory of the source
+directory).  In some packages it creates a C header file containing
+system-dependent definitions.  It also creates a file `config.status'
+that you can run in the future to recreate the current configuration.
+
+Running `configure' takes a minute or two.  While it is running, it
+prints some messages that tell what it is doing.  If you don't want to
+see the messages, run `configure' with its standard output redirected
+to `/dev/null'; for example, `./configure >/dev/null'.
+
+To compile the package in a different directory from the one
+containing the source code, you must use a version of `make' that
+supports the VPATH variable, such as GNU `make'.  `cd' to the directory
+where you want the object files and executables to go and run
+`configure'.  `configure' automatically checks for the source code in
+the directory that `configure' is in and in `..'.  If for some reason
+`configure' is not in the source code directory that you are
+configuring, then it will report that it can't find the source code.
+In that case, run `configure' with the option `--srcdir=DIR', where
+DIR is the directory that contains the source code.
+
+Another `configure' option is useful mainly in `Makefile' rules for
+updating `config.status' and `Makefile'.  The `--no-create' option
+figures out the configuration for your system and records it in
+`config.status', without actually configuring the package (creating
+`Makefile's and perhaps a configuration header file).  Later, you can
+run `./config.status' to actually configure the package.  You can also
+give `config.status' the `--recheck' option, which makes it re-run
+`configure' with the same arguments you used before.  This option is
+useful if you change `configure'.
+
+If your system requires unusual options for compilation or linking
+that `configure' doesn't know about, you can give `configure' initial
+values for some variables by setting them in the environment.  In
+Bourne-compatible shells, you can do that on the command line like
+this:
+	CC='gcc -traditional' DEFS=-D_POSIX_SOURCE ./configure
+
+For csh compatible shells, you can do something like this:
+
+	(setenv CC 'gcc -traditional' ; ./configure)
+
+The `make' variables that you might want to override with environment
+variables when running `configure' are:
+
+(For these variables, any value given in the environment overrides the
+value that `configure' would choose:)
+CC		C compiler program.
+		Default is `cc', or `gcc' if `gcc' is in your PATH.
+INSTALL		Program to use to install files.
+		Default is `install' if you have it, `cp' otherwise.
+		If you have an non-standard `install', use INSTALL="cp -p"
+
+(For these variables, any value given in the environment is added to
+the value that `configure' chooses:)
+DEFS		Configuration options, in the form `-Dfoo -Dbar ...'
+CFLAGS		Compiler options, such as `-O -g ...'
+LIBS		Libraries to link with, in the form `-lfoo -lbar ...'
+
+If you need to do unusual things to compile the package, we encourage
+you to figure out how `configure' could check whether to do them, and
+mail diffs or instructions to the address given in the README so we
+can include them in the next release.
+
+After running configure, do a:
+
+	make depend
+
+followed by a:
+
+	make all

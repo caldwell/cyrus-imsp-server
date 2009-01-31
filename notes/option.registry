@@ -1,0 +1,110 @@
+			 IMSP option registry
+			 --------------------
+			   by Chris Newman
+			 Last update 02/16/00
+
+In order to prevent conflicts in option naming, the namespace for IMSP
+options needs to be controlled by a central registry.  Two types of
+registrations may be made: 
+
+1) Registration of an option prefix.  Each client should register a
+prefix.  The client implementor or team then has complete control over
+option names beginning with that prefix.
+
+2) Registration of common options.  If a specific option is deemed
+useful for multiple clients, it can be registered in one of the shared
+option hierarchies.  A precise description of the option's function
+must be sent with the registration.  The registration authority
+reserves the right to reject a registration, require that the
+registered option be in use by multiple clients, or open the
+proposal up for discussion.
+
+NOTE: The IMAP integration features of the IMSP server have been
+removed as of version 1.6a1 of the IMSP server. Therefore, many of
+these options are deprecated.
+
+Periodic updates of the registration list will be sent to the IMAP
+discussion list.
+
+Current procedure: Send the request in email to
+
+		imsp-options@andrew.cmu.edu
+
+--------------------------------------
+Common registered option prefixes:
+
+Prefix			Controller	Description
+------			----------	-----------
+common.			registry	Options useful to multiple clients.
+desc.			registry	Text descriptions of other options.
+imap.			registry	Options that affect or describe IMAP
+					server configuration.
+imsp.			registry	Options that affect or describe IMSP
+					server configuration.
+x.			none		Unrestricted option space for testing.
+
+Client specific registered option prefixes:
+
+Prefix			Controller			Product
+------			----------			-------
+cyrus.			Carnegie Mellon University	X-Cyrus
+ecsmail.		ESYS Corp			Simeon (formerly ECSmail)
+eudora.			Qualcomm Incorporated		Eudora
+mailstrom.		Adam Treister			Mailstrom
+ML.             	Mike Macgirvin                  ML
+pine.			University of Washington	Pine
+simeon.			ESYS Corp.			Simeon
+cyrusoft.mulberry.      Cyrusoft International, Inc.    Mulberry
+
+--------------------------------------
+Registered options:
+
+common.date
+
+    The value of this option is the current date and time at the IMSP
+    server in the proper format for an RFC822 date header as updated
+    by RFC1123.  This should be used in place of a client's internal
+    clock if there is reason to suspect the internal clock may not be
+    accurate.
+
+common.delivery.hosts
+
+    The value of this option is a list of SMTP hosts for mail
+    submission.  A client should try all hosts in the order specified
+    before announcing failure to the user.
+
+common.domain
+
+    The value of this option is the RFC822 mail domain of the current
+    IMSP server.  There is no requirement that a host with the
+    specified name exists, since a DNS MX record would be sufficient.
+
+common.from
+
+    The value of this option is the RFC822 from address that should be
+    used for mail submitted by the current user.  All clients should
+    use this option in order to leave administrative control of
+    whether and how users may adjust their from address to the IMSP
+    server implementation and configuration.
+
+common.sent.mailbox
+
+    The value of this option is the name of a mailbox where copies of
+    all outgoing mail should be stored.
+
+desc.<option-name>
+
+    A textual description of the option <option-name> that may be
+    desplayed to users to describe that option.
+
+imap.charset
+
+    [proposal currently being discussed]
+
+imsp.imap.servers  [ Deprecated as of version 1.6a1 ]
+
+    The value of this option is a list of host-descriptors for the
+    IMAP servers managed by this IMSP server.  A host-descriptor is a
+    hostname which may be followed by a "/" and an implementation
+    dependent string (used to identify the IMAP implementation as
+    necessary).

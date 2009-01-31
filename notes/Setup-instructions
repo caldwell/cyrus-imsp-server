@@ -1,0 +1,338 @@
+IMSP Version 1.7
+----------------
+
+Here's a crude set of directions for setting up the IMSP server.
+There are several sections in this document:
+
+- Setting it up
+- Setting up LDAP address books
+- Testing it
+- Telemetry (logging user activity)
+- Predefined options
+
+
+SETTING IT UP
+-------------
+You have to create the directory /var/imsp, or change the "PREFIX"
+definition in the syncdb.c file to an appropriate existing directory.
+
+The cyrus-imspd must be run as root to use port 406. (But I think it
+could be run out of inetd, so maybe that's no longer a true statement.)
+
+You should copy the "options.sample" file to /var/imsp/options after
+changing the site-specific lines as needed.  The parenthesized lists
+in the options file are space separated. Binary options are set to "+"
+for true and "-" for false. See the "Predefined options" section for a
+list of options that control the IMSP server.
+
+If you want new users to be able to LOGIN to the server, be sure the
+"imsp.create.new.users" option is set to true (+). Without it, no one
+can login until a directory and options file are created for them.
+
+The AUTHENTICATE and LOGIN commands are implemented using SASL, so you
+need to configure it as instructed by the directions that came with
+the SASL libraries. That primarily involves putting SASL plug-ins into 
+the /usr/lib/sasl/ directory. Also check the "imsp.sasl.*" options
+that are documented in "Predefined options" section below.
+
+If you're using Kerberos you need to create an "imap.<short-host>"
+Kerberos instance where <short-host> is the first element of the
+fully qualified domain name (ex: imap.cyrus for cyrus.andrew.cmu.edu).
+Note that we use "imap", not "imsp", as the service name.
+
+The IMAP proxy features of the IMSP server were never completed and
+never used at any site that I'm aware of. Therefore, I decided to
+remove those features rather than port them to the SASL environment.
+The following paragraphs are kept around for history's sake.
+
+   The CREATE/DELETE/RENAME and new user LOGIN commands do proxy
+   connections to an IMAP server.  You need to make sure the
+   "imap.new.mailbox.servers" option is correct for new user LOGIN to
+   find a server to get a list of mailboxes from.  In addition, if your
+   IMSP clients are using Kerberos tickets rather than plaintext
+   passwords, you need to modify your IMAP server to accept the
+   imap.<imsp-hostname> ticket as valid for any user.  AFS sites may need
+   to start imspd after running pagsh to prevent ticket confusion, and
+   other sites may need to modify the ticket file environment variable.
+
+   If you are running a cyrus imap server, you can remove the file
+   /var/imsp/mailboxes to cause an automatic re-sync of the mailbox list
+   with the IMAP server the next time IMSP is restarted.  The mailbox
+   commands will not work with a c-client IMAP server.
+
+SETTING UP LDAP ADDRESS BOOKS
+-----------------------------
+
+The IMSP server now supports a special kind of read-only address book that's
+implemented via LDAP lookups rather than the built-in syncdb database. The
+"imsp.implementation.updates" file has more details on our motivations for
+adding this ability to the server, so this document will just talk about
+setting it up.
+
+In the initial implementation, the IMSP server can only perform lookups
+through one LDAP server using one set of search options. The server name and
+other LDAP settings are retrieved from the IMSP global options file
+whenever they are first needed. (You don't need to provide any settings if
+you're not going to use the LDAP feature.)
+
+The LDAP server name and search base settings are defined in the following
+global options. In /var/imsp/options, replace the values as appropriate for
+your site. Omit the "ldapport" setting to have it default to the standard
+LDAP port number. The "scope" setting must be one of "subtree", "base", or
+"onelevel"; see the LDAP documentation on ldap_search() for more info.
+
+	imsp.ldap.searchbase N o=Carnegie Mellon University
+	imsp.ldap.scope N subtree
+	imsp.ldap.host N ldap.andrew.cmu.edu
+	imsp.ldap.port N 389
+
+Next, fill in the name of the LDAP attribute that contains the full name of
+the entry. This is normally "cn", short for common name. The server also
+needs the name of an attribute which is sure to be unique for each entry. At
+Carnegie Mellon, more than one user can have the same common name but we
+know that no two entries will have the same "uid" user-id field. In
+the worst case, you could always use "dn", the distinguished name of
+the entry. Try to pick something shorter, though.
+
+	imsp.ldap.fullnameattr N cn
+	imsp.ldap.uniqueattr N uid
+
+Now define a default filter for the search operations. Generally, this
+should help narrow the search down to entries which correspond to people or
+at least entries which have e-mail addresses. The value you see below is
+specific to Carnegie Mellon, so make sure you change it. Something like
+"mail=*" would limit the search to those entries that have an e-mail
+attribute. If you don't want to restrict the search at all, use
+"(objectclass=*)", the LDAP equivalent of an unqualified wildcard search.
+
+	imsp.ldap.defaultfilter N (objectclass=cmuwhitepages)
+
+Finally, you must provide a mapping table to translate between IMSP field
+names and LDAP attribute names. They are entered as a simple list but are
+interpreted as (field-name, ldap-attribute-name) pairs. Obviously, there
+must be an even number of items in the list. If an IMSP field name has no
+corresponding LDAP attribute, use NULL as the corresponding attribute name.
+
+The values suggested below are tuned to Cyrusoft's Mulberry e-mail
+client. The IMSP fields you see listed are exactly what Mulberry uses when
+storing its address books. Pay particular attention to the "alias" field
+since that is the one used when Mulberry 1.4 or later does nickname
+resolution on addresses entered in the "To" header of outgoing message
+drafts. We use "uid" so Andrew user-ids are automatically expanded to the
+full name and preferred e-mail address of the user.
+
+This should appear as one long line in your options file, but has been
+broken up here for readability:
+
+	  imsp.ldap.attrmap N (name cn address postaladdress alias uid
+	  company ou email mail fax telephonenumber notes NULL phone-home
+	  telephonenumber phone-work telephonenumber urls labeleduri)
+
+When compiling the server for your site, make sure that the configure
+script finds your LDAP library. Use the --with-ldap=<library-name> argument
+if you need to help it out. For example, "--with-ldap=superldap" results in
+"-lsuperldap" at link time. If configure doesn't find an LDAP library or
+you use "--without-ldap", all the LDAP lookup features are omitted.
+(abook_ldap.c is not even compiled.)
+
+The remaining set up steps are done by sending commands to the running IMSP
+server. The "imtest" program is a simple way of interacting with your IMSP
+server. See below for more information. You might find that 
+"telnet imsp.company.com 406" will also do the job if you're comfortable
+authenticating with the 'A LOGIN user "password"' command first.
+
+Decide which address books should use LDAP lookups. If necessary, create
+the address book first with the protocol:
+
+  A0 CREATEADDRESSBOOK "All Users"
+
+If the address book already exists and isn't empty, that's okay. Once the
+LDAP feature is enabled, the old contents of the address book are
+ignored.
+
+Turn on the LDAP feature for the address book by setting the USER1 access
+control list (ACL) bit for all users. By setting the USER1 bit, the server
+will automatically remove all normal access bits other than READ and
+LOOKUP, making this a read-only address book.
+
+If you don't want users to be able to open the address book, also set the
+USER0 bit. This is strongly recommended as producing a list of each user in
+the address book can be an expensive operation when the list of users ranges
+in the tens of thousands. When USER0 is set, users can still search for
+specific entries -- they're just restricted from doing an unqualified
+search. The protocol for this is ('0' stands for USER0 and '1' stands for
+USER1):
+
+  A1 SETACL ADDRESSBOOK "All Users" anyone lr01
+
+As a quick test of your LDAP-based address book, try a simple search:
+
+  A2 SEARCHADDRESS "All Users" name "*jackson*"
+
+If you don't get the results you expected, check the syslog log file for
+error messages.
+
+
+TESTING IT
+----------
+
+The test program "imtest" included with the Cyrus IMAP release is a
+simple protocol tester.  It connects to the IMSP or IMAP server
+specified on the command line, line-buffers user input and sends it to
+the server as well as displaying server responses locally.  It will
+convert all newlines to CRLF pairs.  It also has SASL integration, so
+it can let you test authenticated server logins. See the documentation
+that comes with "imtest" for more details on using the tool.
+
+
+TELEMETRY (LOGGING USER ACTIVITY)
+---------------------------------
+
+If you wish to save session telemetry on the server, create the
+directory "/var/imsp/log/<user>".  All connections by <user> will
+store a telemetry log in that directory.
+
+
+PREDEFINED OPTIONS
+------------------
+
+The following option names are reserved in this implementation. Some
+of the options have been deprecated by the removal of the IMAP
+integration (mailbox and bboard) features or by the conversion to the
+SASL authentication infrastructure. Those options are prefixed with
+the word "OLD" in the list below.
+
+imsp.sasl.allowplaintext	[NON-VISIBLE]
+	Binary option to decide whether users are allowed to
+	AUTHENTICATE with the plaintext	mechanism. Even if this option 
+	is turned off, the LOGIN command will accept the equivalent of 
+	plain text authentications. (Should that be changed?)
+
+imsp.sasl.minimum_ssf		[NON-VISIBLE]
+	Determines the minimum security strength factor required
+	before the server will advertise and accept a given
+	mechanism. Measured in bits. If the client doesn't support a
+	mechanism with at least this many bits of "strength",
+	authentication will fail.
+
+imsp.sasl.maximum_ssf		[NON-VISIBLE]
+	Determines the maximum security strength factor allowed for
+	the server will advertise and accept a given mechanism. See above.
+
+imsp.sasl.<plug-in>.*
+	Each SASL plug-in may choose to support optional or required
+	mechanism settings. When the mechanism requests an option
+	lookup, the IMSP server prepends the string "imsp.sasl." and
+	the lowercased name of the mechanism to the name of the option 
+	being sought.
+	Example: imsp.sasl.kerberos_v4.srvtab
+
+common.date			[READ-ONLY] (magic)
+	When a user asks for the value of the date option, an RFC-822
+	date string should be returned with the current time.  This is
+	provided to assist small clients with unreliable clocks.
+
+common.delivery.hosts		[READ-ONLY]
+	This contains the list of recommended SMTP hosts for mail delivery.
+
+common.domain			[READ-ONLY]
+	When a user asks for the domain option, the local mail domain
+	is returned.
+
+common.from			[READ-ONLY] (magic)
+	When a user asks for the value of the from option, an RFC-822
+	address for that user is returned.
+
+common.sent.mailbox		[READ-WRITE]
+	The name of a mailbox to APPEND blind carbon copies.
+
+imsp.admin.all			[NON-VISIBLE]
+	This is a list of users that may use any implemented IMSP features.
+
+OLD imsp.admin.bboards		[NON-VISIBLE]
+	This is a list of users that may create, rename, delete and
+	replace any mailbox.
+
+OLD imsp.admin.subs		[NON-VISIBLE]
+	This is a list of users allowed to view (but not change) other
+	user's subscriptions and mailboxes.
+
+imsp.create.new.users		[NON-VISIBLE]
+	If this global option is on, the directory for a new user
+	will be created automatically.  Otherwise the system
+	administrator must create a directory for each authorized user.
+
+imsp.create.policy		[NON-VISIBLE]
+	This is specifies the creation policy for new mailboxes.  The
+	option is specified as a site-defined string.
+
+OLD imsp.default.subs		[NON-VISIBLE]
+	A list of the default subscriptions given to a new user.
+
+OLD imsp.external.subs		[NON-VISIBLE]
+	If this is set, subscriptions to external mailboxes and
+	mailboxes are allowed by using the {hostname}folder notation.
+
+OLD imsp.imap.servers		[READ-ONLY]
+	This global option contains a list of all IMAP servers managed
+	by IMSP.  An implementation specifier may be appended to the
+        end of a server name with a `/' separator.
+
+imsp.ldap.*                     [NON-VISIBLE]
+	See the section above for more information on all the LDAP settings.
+
+imsp.log.level			[NON-VISIBLE]
+	This integer specifies the amount of logging to be done.
+
+imsp.login.realms		[NON-VISIBLE]
+	This specifies a list of realms which are permitted to do
+	cross-realm Kerberos authentication.
+
+imsp.login.srvtab		[NON-VISIBLE]
+	This specifies the filename of the Kerberos srvtab file.
+	Still supported for backward compatibility, but you should
+	probably use imsp.sasl.kerberos_v4.srvtab instead.
+
+OLD imsp.new.mailbox.servers	[NON-VISIBLE]
+	This specifies a list of IMAP servers to search for or create
+	the INBOX for a new user, or new non-personal mailboxes.
+
+OLD imsp.proxy.authlevel	[NON-VISIBLE]
+	This is an integer bitmask of the authentication levels
+	supported for proxy login to IMAP servers.  Add 1 if cleartext
+	permitted, add 2 if integrity permitted, add 4 if privacy
+	permitted.  Defaults to 7.  The highest permitted mechanism
+	available will be used.
+
+OLD imsp.proxy.authtype		[NON-VISIBLE]
+	This is the authentication type used for proxy login
+	to IMAP servers.  If this is not set, the best authentication
+	available will be used.  Only KERBEROS_V4 and PLAINTEXT
+	supported at present.
+
+OLD imsp.required.subs		[NON-VISIBLE]
+	Users will not be allowed to unsubscribe to mailboxes in this
+	list.
+
+OLD imsp.share.mailboxes	[NON-VISIBLE]
+	If this global option is on, then mailbox names beginning with
+	the prefix "user.<username>." are reserved as mappings of
+	individual user's MAILBOXES into the MAILBOXES namespace.  In
+	addition, it permits users to allow other users to read their
+	mailboxes if ACLs permit.
+
+OLD imsp.user.inbox		[READ-ONLY]
+	This is the name of a mailbox which will appear as "INBOX" on any
+        mailbox list.  The phrase "$USER" will be replaced with the login
+        name of the current user.
+
+imsp.user.quota			[READ-ONLY]
+	This is an integer specifying the maximum number of kilobytes
+	in the user's options & address books (doesn't include
+	subscriptions or address book ACLs).
+
+imsp.user.quota.usage		[READ-ONLY]
+	This is an integer specifying the number of bytes used by
+	options and address book entries (see "QUOTA" above for full
+	details).  Its value is translated to kilobytes for user
+	requests.

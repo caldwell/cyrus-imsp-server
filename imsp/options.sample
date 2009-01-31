@@ -1,0 +1,14 @@
+common.date R 
+common.delivery.hosts R (mailhost.myorg.com)
+common.domain R cyrus.andrew.cmu.edu
+common.from R 
+common.sent.mailbox R sentmail
+desc.common.from R The address that should be used in the From: header when sending email.
+imsp.admin.all N (root)
+imsp.create.new.users N +
+imsp.create.policy N parent
+imsp.log.level N 2
+imsp.login.realms N ()
+imsp.login.srvtab N /etc/srvtab
+imsp.sasl.allowplaintext N -
+imsp.user.quota R 1000

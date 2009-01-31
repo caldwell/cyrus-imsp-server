@@ -1,0 +1,292 @@
+Sections:
+
+  - Intro
+  - TODO
+  - Recent History
+  - Ancient History
+
+Last update by Joseph Jackson, 01-Dec-2000.
+
+INTRO
+-----
+
+This is a log of major changes made to the IMSP server and
+a list of improvements that could be made in the future.
+See also the RCS log files for each individual source file.
+
+At this point, we are not planning on significant work on this server,
+so the list of TODO items might remain outstanding forever. If you have
+bug reports or would like to contribute your enhancements back, please 
+send them to <jackson@CMU.EDU>.
+
+In the Recent History section, the three digit numbers are source code 
+tracking numbers internal to Carnegie Mellon University. (Ignore them.)
+
+
+
+TODO
+----
+	Simeon doesn't behave properly for searches, probably because of
+	  the restrictions on searching for "name *". Might have to pull that.
+	The ptclient code doesn't initialize the ptscache.db file properly
+		Use 'db_load -T -t hash ptscache.db' to create an empty one
+
+	Remove all the code for bboard handling and IMAP proxy connections
+	  (It's all been ifdef'ed out for now)
+	Simplify the code for "command MAILBOX" handlers now that the
+	  mailbox half is unimplemented
+	Pull the "host" argument to the imsp_* protocol handler routines
+	Move the realm and admin checks from sasl_support.c to authize.c
+	Comment the abook_ldap.c code
+
+	Make LDAP abooks more configurable, allowing more than one set of
+	  LDAP search parameters per server. See Setup-instructions for 
+	  more details.
+
+	Bug: When I add someone else to the ACL on my address book,
+	  it doesn't take effect until I logout of the IMSP server.
+	Response: ACL changes are stored in the global abooks file
+	  which isn't written out until logout time.
+	Same bug: I made an ACL change, but later that change was undone.
+	Response: Yup, that happens some times.
+	Details:
+	  The global abooks db isn't kept in sync when modified by
+	  multiple users at nearly the same time.
+	- User 1 logs in and does an ADDRESSBOOK * command
+	  This causes a copy of the global abooks file to be read in
+	- User 2 logs in and creates an abook with non-default ACLs
+	  This also reads in the global abooks file
+	  This updates the private image of the global abooks file
+	- User 2 logs out
+	  This causes the private abooks to be written out to disk
+	- User 1 creates a new abook with non-default ACLs
+	  This updates the private image of the global abooks file
+	- User 1 logs out
+	  User 1's copy of the global abooks database is written out
+	- Problem: User 2's changes have been discarded
+	I've started to think about ways to fix this problem. There's a new
+	syncdb.c function called sdb_flush() that takes a "GLOBAL" flag as an
+	argument. If we checked the freshness of the global abooks file before 
+	making changes and flushed out any modifications right away, this
+	problem would occur a lot less -- only in rare cases where users make
+	changes at the same instant. To fix it for sure, we'd have to also 
+	lock the global abooks file during these operations.
+
+
+RECENT HISTORY
+---------------
+1.7:
+    - Now use SASLv2
+    - Remove deprecated IMAP proxy code
+    - Allow secondary LDAP search
+
+013: 1.6a3 
+    - Moved the configuration of LDAP searching from the abook_ldap.c source
+	file to the global IMSP options file. It's now read in at run time
+	rather than being hard-coded into the server binary.
+    - Converted from the Netscape LDAP SDK to the OpenLDAP version. Mostly
+	had to "ifdef" out error checking code in abook_ldap.c, but also
+	needed to fiddle with configure.in.
+    - Added support for the LITERAL+ protocol extension. The input processing
+	loop in dispatch.c was cleaned up a bit in the process.
+
+012: 1.6a2
+    - Fixed several memory leaks
+    - Don't allow the dispatch error routine to call itself recursively.
+	That caused slow but steady stack growth as it recursed endlessly
+    - Fixed a problem handling non-lowercase search keys. Simeon searches on
+	"Email" and "Alias". The spec says they should be case-insensitive
+    - If the IMSP search spec has no fields that translate to LDAP attributes,
+	return an error instead of doing an unqualified search of everything
+
+011: 1.6a1
+    - Based on the sources in 009
+    - Merged the changes from 008 -> 010 (SASL integration) that were made in
+	parallel with the changes from 008 -> 009 (LDAP lookups)
+    - Added the -p command line argument which overrides the port number selection
+    - Made the LDAP address book support conditional via configure
+    - Disallow "name *" searches for abooks with ACL bit USER0 set
+	Previously, only searches with no arguments were disallowed
+	This should make the Simeon behavior match the Mulberry behavior
+    - Numerous enhancements to the first round of SASL integration changes
+    - Eight bit characters in address book entry names no longer cause
+	"no such entry" failures from FETCHADDRESS (Fixed bugs in lib/glob.c)
+    - Applied bug fixes from Jeff Gelb <jgelb@oit.duke.edu>
+	GETACL on a protected abook used to core dump the server.
+	SETACL on an abook that doesn't exist used to return *nothing*
+	at all from the server. Now sends back a "NO" error message.
+    - Fixed Linux compile errors from undefined SIGEMT and SIGSYS
+    - When an administrator assumes the identity of another user with
+	'LOGIN userid ""', the reply, telemetry log, and syslog messages
+	all indicate both the admin user-id as well as the new user-id:
+	Administrator switch from user `admin' to user `joeuser' successful.
+    - Reorganized and updated much of the documentation in the notes directory.
+
+010:
+    - SASL integration. This affected the startup code, the AUTHENTICATE
+      command, and the dispatch layer
+    - Based on the sources in 008, not 009, due to parallel development
+
+009: 1.5a9
+    - The USER1 access control list bit on an address book means that an
+      LDAP directory should be searched instead of using a "syncdb" data file.
+      This is a means of implementing an abook that has all your site's users.
+
+008: 1.5a8
+    - Add support for the IMAP shutdown file (/var/imap/msg/shutdown)
+    - Reorder logout code to write databases to disk before closing the
+      connection
+    - If the global options file has a read-only setting, the server
+      will no longer let the user create an overriding private option  
+    - Added sdb_flush() routine to force database changes to disk
+      (This routine isn't being called from anywhere just yet.)
+    - Changed a few syslog messages in auth_krb_pts.c to differentiate them
+    - Several misc. casting changes to avoid high volumes of compiler warnings
+
+007: 1.5a6
+    - Updated auth_krb_pts.[ch] to reflect changes in cyrus imapd 1.5.16.
+
+    1.5a7
+    - The USER0 access control list bit will now prevent users from listing
+      the complete contents of an address book. Attempts to use SEARCHADDRESS
+      with no search criteria on abooks that have USER0 set now returns a
+      permission error.
+
+006: 1.5a5
+    - missed bug report regarding type mismatch in call to abook_parentacl
+      in abook.c. Thanks to Roy Smith for the fix.
+
+006: 1.5a4
+** This version changes the default hash algorithm when auth_krb_pts    **
+** is used with db. This means that this release will only work with    **
+** 1.5.9 (or later) of the cyrus-imapd or you need to compile the old   **
+** hash algorithm by adding --enable-old-hash                           **
+
+    - Fixed bug in imsp/dispatch_read where a variable was being decremented 
+      twice. Thanks to Cyrus Daboo for the fix.
+
+    - Allow someone with the admin bit set to create addressbooks for other 
+      people. 
+
+005: 1.5a3
+** This version has only been tested under Solaris **
+    - Changed syncdb not to commit to disk as per the comments. This
+      probably means we will lose data if the machine
+      crashes. However, the way the code is structured at this point,
+      performance goes to hell if we do commit changes to disk when
+      they are made
+
+    - IMSPD no longer forks and exits. Rather, it won't exit unless
+      there is an error; thereby allowing you to put it in a while(1)
+      loop to restart it autoatmically if it does decide to kill
+      itself.
+
+003: 1.5a2
+** This version has only been tested under Solaris **
+    - fixed stuff I probably broke in syncdb.c with the way the cache
+      of database is handled. More sanity checks and debugging output as
+      a result of this bug hunt.
+
+003: 1.5a1
+** This version has only been tested under Solaris **
+
+    - Added setsockopt() for SO_REUSEADDR to allow quicker restarts when
+      imspd dies
+
+    - remove infinite loop when creating addressbooks (loop in checking the 
+      parent acl)
+
+    - autoconf cleanup
+      * removed imtest - use the one with the cyrus imapd distribution
+      * removed syslog test - wasn't being used by the Makefile anyway
+      * reordered things so that the ucb linking would always come last -- 
+        was lazy and did not do the proper autoconf test
+
+    - Allow creation of personal addressbooks. Before, if one tried to
+      do a CREATEADDRESSBOOK on your own addressbook, it would always 
+      return AB_EXIST regardless of whether or not it actually did exist. 
+      Now, it will actually try to create it. 
+      UNLESS you define DISABLE_AUTO_CREATE_AB in the imsp/Makefile, imspd 
+      will bypass the ACL check and create an addressbook for the user. 
+      (was lazy here too -- this should be via configure)
+
+    - bug in abook_parentacl() where it would actually overwrite the string 
+      being passed to it. This resulted in the user's abooks file not be 
+      updated properly when one did a CREATEADDRESSBOOK on a sub addressbook
+
+    - added better logging (log authenticates) and better error reporting 
+      via syslog
+
+    - fix sdb_copy() so RENAMEADDRESSBOOK actually works and doesn't result
+      in the src addressbook being nuked and the dst addressbook being empty.
+
+    - added shadow password support -- contributed by ??
+
+
+ANCIENT HISTORY
+---------------
+
+Version 1.4
+  WARNING: IMSP releases prior to version 1.0alpha8 as well as releases
+  from ESYS used "anonymous" as the public identifier for ACLs.  
+  1.4 and later uses "anyone" to be consistent with the IMAP server ACLs.
+
+Version 1.3
+ Added support to run as inetd client.
+ Make GET accept an astring rather than an atom
+
+Version 1.0 alpha 8 released. (June 14, 1994)
+ Fixed bug in sdb_delete which caused DELETEADDRESSBOOK to break on some
+  systems.
+ Fixed bug in encoding routines on little-endian machines
+ Fixed bug in synchronized database routines which cause RENAMEADDRESSBOOK
+  to break on some systems.
+ Fixed bug which prevented locking of address book entries with a
+  space in their name.
+ Fixed bug which caused imap_wait() to lock on connection failures
+ Added a number of POSIX compatability changes
+ Disown parent tty
+ Added some function prototypes
+ Added new LIST command and re-write mailbox support
+ Changed addressbooks to use libcyrus ACLs in abooks file
+ Added \Marked and \Unmarked and LAST/SEEN support
+ General cleanup of unused variables, etc.
+ Added telemetry log
+
+Version 1.0 alpha 7 released
+ Added CAPABILITY command.
+ Added AUTHENTICATE command.
+ Merged with libcyrus.a
+ Added protection support and buffering to dispatch.c
+ Added proxy support via AUTHENTICATE command
+ Removed old @KERBEROS hack
+ Removed old FIND ALL.ADDRESSBOOKS command
+ Updated atom definition
+ Fixed bug in MYRIGHTS MAILBOX and GETACL MAILBOX
+
+Version 1.0 alpha 6 released.
+ Added CREATEADDRESSBOOK, DELETEADDRESSBOOK, RENAMEADDRESSBOOK
+ Permit empty address book entries and empty address books
+ Remove addressbook auto-create on STOREADDRESS
+ Remove addressbook auto-delete on STOREADDRESS/DELETEADDRESS
+ Added ANONYMOUS_LOGIN option
+
+Version 1.0 alpha 5 released.
+ Added ADDRESSBOOK command
+ fixed bug in lcase() routine.
+ Renamed standard options to fit option naming conventions.
+
+Version 1.0 alpha 4 released.
+ Changed MYACL to MYRIGHTS
+ fixed SEARCHADDRESS bug
+ fixed bug with "+ go" sending a NULL
+ fixed memory bug in kerberos plaintext-password routines
+
+Version 1.0 alpha 3 released.
+ Added ? wildcard.
+ Changed syntax SEARCHADDRESS unsolicited reply.
+
+Version 1.0 alpha 2 released.
+ Fixed bug in renaming INBOX.
+ Change address book key from atom to string.
+ Added advisory locking commands.

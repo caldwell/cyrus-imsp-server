@@ -1,0 +1,159 @@
+/* config.h.in.  Generated automatically from configure.in by autoheader 2.13.  */
+#define STATEDIR	"/var/imsp"
+
+
+/* Define if on AIX 3.
+   System headers sometimes define this.
+   We just want to avoid a redefinition error message.  */
+#ifndef _ALL_SOURCE
+#undef _ALL_SOURCE
+#endif
+
+/* Define to empty if the keyword does not work.  */
+#undef const
+
+/* Define if you don't have vprintf but do have _doprnt.  */
+#undef HAVE_DOPRNT
+
+/* Define if you support file names longer than 14 characters.  */
+#undef HAVE_LONG_FILE_NAMES
+
+/* Define if you have the vprintf function.  */
+#undef HAVE_VPRINTF
+
+#undef HAS_STRERROR
+#undef HAVE_DB_185_H
+#undef HAVE_KRB
+#undef HAVE_LDAP
+#undef HAVE_LIBDB
+#undef HAVE_GSSAPI_H
+#undef HAVE_GSS_C_NT_HOSTBASED_SERVICE
+#undef HAVE_STRLCAT
+#undef HAVE_STRLCPY
+
+/* Define if you have the dn_expand function.  */
+#undef HAVE_DN_EXPAND
+
+/* Define if you have the dns_lookup function.  */
+#undef HAVE_DNS_LOOKUP
+
+/* Define if you have the ftruncate function.  */
+#undef HAVE_FTRUNCATE
+
+/* Define if you have the getaddrinfo function.  */
+#undef HAVE_GETADDRINFO
+
+/* Define if you have the getdtablesize function.  */
+#undef HAVE_GETDTABLESIZE
+
+/* Define if you have the getnameinfo function.  */
+#undef HAVE_GETNAMEINFO
+
+/* Define if you have the gsskrb5_register_acceptor_identity function.  */
+#undef HAVE_GSSKRB5_REGISTER_ACCEPTOR_IDENTITY
+
+/* Define if you have the memmove function.  */
+#undef HAVE_MEMMOVE
+
+/* Define if you have the strcasecmp function.  */
+#undef HAVE_STRCASECMP
+
+/* Define if you have the strlcat function.  */
+#undef HAVE_STRLCAT
+
+/* Define if you have the strlcpy function.  */
+#undef HAVE_STRLCPY
+
+/* Define if you have the <dirent.h> header file.  */
+#undef HAVE_DIRENT_H
+
+/* Define if you have the <ndir.h> header file.  */
+#undef HAVE_NDIR_H
+
+/* Define if you have the <sys/dir.h> header file.  */
+#undef HAVE_SYS_DIR_H
+
+/* Define if you have the <sys/ndir.h> header file.  */
+#undef HAVE_SYS_NDIR_H
+
+/* Define if you have the <unistd.h> header file.  */
+#undef HAVE_UNISTD_H
+
+/* Define if you have the dbm library (-ldbm).  */
+#undef HAVE_LIBDBM
+
+/* Define if you have the dl library (-ldl).  */
+#undef HAVE_LIBDL
+
+/* Define if you have the krb library (-lkrb).  */
+#undef HAVE_LIBKRB
+
+/* Define if you have the ndbm library (-lndbm).  */
+#undef HAVE_LIBNDBM
+
+/* Define if you have the resolv library (-lresolv).  */
+#undef HAVE_LIBRESOLV
+
+/* Do we have strerror? */
+#undef HAS_STRERROR
+
+/* Berkeley DB? */
+#undef HAVE_LIBDB
+
+/* Berkeley DB? */
+#undef HAVE_LIBDB
+
+/* DB 185 h? */
+#undef HAVE_DB_185_H
+
+/* Berkeley DB? */
+#undef HAVE_LIBDB
+
+/* Define if you have the gssapi.h header file */
+#undef HAVE_GSSAPI_H
+
+/* Define if your GSSAPI implimentation defines GSS_C_NT_HOSTBASED_SERVICE */
+#undef HAVE_GSS_C_NT_HOSTBASED_SERVICE
+
+/* Define if your GSSAPI implimentation defines GSS_C_NT_HOSTBASED_SERVICE */
+#undef HAVE_GSS_C_NT_HOSTBASED_SERVICE
+
+/* Define if your GSSAPI implimentation defines GSS_C_NT_HOSTBASED_SERVICE */
+#undef HAVE_GSS_C_NT_HOSTBASED_SERVICE
+
+/* Define if your GSSAPI implimentation defines GSS_C_NT_USER_NAME */
+#undef HAVE_GSS_C_NT_USER_NAME
+
+/* Define if your GSSAPI implimentation defines GSS_C_NT_USER_NAME */
+#undef HAVE_GSS_C_NT_USER_NAME
+
+/* Define if your GSSAPI implimentation defines GSS_C_NT_USER_NAME */
+#undef HAVE_GSS_C_NT_USER_NAME
+
+/* Do we have ldap support? */
+#undef HAVE_LDAP
+
+/* Do we have kerberos support? */
+#undef HAVE_KRB
+
+/* ptclient state directory? */
+#undef STATEDIR
+
+
+/* getaddrinfo things */
+#include <netdb.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+
+#ifndef HAVE_GETADDRINFO
+#define getaddrinfo     sasl_getaddrinfo
+#define freeaddrinfo    sasl_freeaddrinfo
+#define getnameinfo     sasl_getnameinfo
+#define gai_strerror    sasl_gai_strerror
+#include "gai.h"
+#endif
+
+#ifndef NI_WITHSCOPEID
+#define NI_WITHSCOPEID  0
+#endif
+
