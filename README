@@ -24,3 +24,14 @@ notes/Changes-Todo         -- What been changed and what was left undone
 notes/imsp.implementation  -- A discussion of implementation details
 notes/imsp.implementation.updates
                            -- Some of the latest details, as of version 1.6a1
+
+ABOUT THIS FORK
+---------------
+
+The Project Cyrus download page says this:
+
+  The final version of IMSP server is 1.7b. No further releases of the
+  IMSP server are planned.
+
+This fork is not meant to add any functionality but instead to just
+keep the code compiling on a modern GNU/Linux system. -David
